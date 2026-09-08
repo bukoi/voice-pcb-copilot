@@ -1,11 +1,13 @@
 import asyncio
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from livekit import agents
 from livekit.agents import AgentServer, Agent, AgentSession, TurnHandlingOptions, room_io
 from livekit.plugins import deepgram, groq, rime
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
-
-load_dotenv()
+from pcb_tools import get_component, get_test_point, record_measurement, get_measurement, search_component_info
 
 server = AgentServer()
 
@@ -14,24 +16,24 @@ server = AgentServer()
 async def my_agent(ctx: agents.JobContext):
 
     session = AgentSession(
-        stt=deepgram.STT(
-            model="nova-3",
-            language="multi",  # lets Deepgram auto-detect/switch between languages
-        ),
-        lllm=groq.LLM(
-        model="openai/gpt-oss-20b",
-        max_completion_tokens=60,
+       stt=deepgram.STT(
+    model="nova-3",
+    language="multi",
+    keyterms=["TP1", "TP2", "TP3", "TP4", "U1", "R1", "R2", "C1", "C2", "D1", "LED1", "J1"],
+),
+        llm=groq.LLM(
+            model="openai/gpt-oss-20b",
+            max_completion_tokens=60,
         ),
         tts=rime.TTS(
             model="coda",
             speaker="lyra",
             use_websocket=True,
-              segment="bySentence",
+            segment="bySentence",
         ),
-            turn_handling=TurnHandlingOptions(
-                 turn_detection=MultilingualModel(),   # runs locally, no cloud round-trip
-             ),
-
+        turn_handling=TurnHandlingOptions(
+            turn_detection=MultilingualModel(),
+        ),
     )
 
     @session.on("user_input_transcribed")
@@ -43,13 +45,20 @@ async def my_agent(ctx: agents.JobContext):
 
     await session.start(
         agent=Agent(
-            instructions=(
-                "You are a hands-free voice assistant helping an engineer debug "
-                "a PCB. Keep answers short and spoken-friendly — one or two "
-                "sentences, no bullet points, no long lists. You don't have any "
-                "PCB-specific knowledge loaded yet, so if asked about a specific "
-                "component, be honest that you don't have that data yet."
-            )
+           instructions=(
+    "You are a hands-free voice assistant helping an engineer debug a "
+    "5V-to-3.3V power supply PCB. Keep answers short and spoken-friendly — "
+    "one or two sentences, no bullet points.\n\n"
+    "This board's components are: U1, R1, R2, C1, C2, D1, LED1, J1. "
+    "Its test points are: TP1, TP2, TP3, TP4.\n\n"
+    "If the user asks about one of THOSE specific labels, use get_component "
+    "or get_test_point.\n\n"
+    "If the user asks about a real-world generic part that is NOT one of "
+    "those labels (e.g. '555 timer', 'LM7805', 'ESP32'), use "
+    "search_component_info instead of asking for a reference designator — "
+    "these are real components, not part of this board's labeling scheme."
+),
+            tools=[get_component, get_test_point, record_measurement, get_measurement, search_component_info],
         ),
         room=ctx.room,
         room_options=room_io.RoomOptions(

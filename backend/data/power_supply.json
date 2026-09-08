@@ -1,0 +1,36 @@
+{
+  "project_name": "Power Supply PCB",
+  "description": "5V-to-3.3V regulated power supply board with enable control",
+  "components": {
+    "U1": {
+      "part": "LM1117-3.3",
+      "type": "voltage regulator",
+      "input_voltage": "5V",
+      "expected_output_voltage": "3.3V",
+      "pins": { "1": "GND", "2": "OUTPUT", "3": "INPUT", "4": "ENABLE" },
+      "notes": "Enable pin must be pulled HIGH (3.3V-5V) for the regulator to output voltage. If EN is pulled LOW or floating, output will read near 0V even with correct input voltage."
+    },
+    "R1": { "part": "10k ohm resistor", "type": "pull-up resistor", "connected_to": "U1 ENABLE pin, VIN" },
+    "R2": { "part": "1k ohm resistor", "type": "current-limiting resistor", "connected_to": "Status LED" },
+    "C1": { "part": "10uF electrolytic capacitor", "type": "input filter capacitor", "connected_to": "U1 INPUT, GND" },
+    "C2": { "part": "100nF ceramic capacitor", "type": "output filter capacitor", "connected_to": "U1 OUTPUT, GND" },
+    "D1": { "part": "1N4007 diode", "type": "reverse polarity protection diode", "connected_to": "VIN input" },
+    "LED1": { "part": "3mm red LED", "type": "power indicator", "connected_to": "R2, U1 OUTPUT" },
+    "J1": { "part": "2-pin JST connector", "type": "power input connector", "connected_to": "D1, C1" }
+  },
+  "test_points": {
+    "TP1": { "location": "U1 INPUT", "expected_voltage": "5V", "description": "Input voltage before regulation" },
+    "TP2": { "location": "U1 ENABLE pin", "expected_voltage": "3.3V to 5V", "description": "Enable control signal; must be HIGH for regulator to work" },
+    "TP3": { "location": "U1 OUTPUT", "expected_voltage": "3.3V", "description": "Regulated output voltage, powers the rest of the board" },
+    "TP4": { "location": "GND", "expected_voltage": "0V", "description": "Ground reference point" }
+  },
+  "known_fault_for_demo": {
+    "symptom": "TP3 reads approximately 0V-0.2V instead of 3.3V",
+    "root_cause": "R1 pull-up resistor is missing/disconnected, leaving U1's ENABLE pin floating LOW instead of pulled HIGH",
+    "diagnostic_path": [
+      "Check TP1 (input) — should read 5V, confirms input power is fine",
+      "Check TP2 (enable pin) — will read near 0V, revealing the actual fault",
+      "Conclusion: regulator is disabled because ENABLE isn't being pulled high"
+    ]
+  }
+}
