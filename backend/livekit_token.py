@@ -16,6 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/token")
 def get_token():
     room_name = f"pcb-copilot-{uuid.uuid4().hex[:8]}"
@@ -34,17 +35,26 @@ def get_token():
             )
         )
         .with_room_config(
-    api.RoomConfiguration(
-        agents=[
-            api.RoomAgentDispatch(
-                agent_name="pcb-copilot"
+            api.RoomConfiguration(
+                agents=[
+                    api.RoomAgentDispatch(
+                        agent_name="pcb-copilot"
+                    )
+                ]
             )
-        ]
-    )
-)
+        )
     )
 
     return {
         "token": token.to_jwt(),
         "room": room_name,
     }
+
+
+# ---------------------------------------------------------------------------
+# KiCad file upload endpoints — registered here because this FastAPI app
+# is the HTTP server (uvicorn on port 8000).  The LiveKit agent process
+# is separate and communicates via the LiveKit room data channel.
+# ---------------------------------------------------------------------------
+from file_receiver import router as upload_router  # noqa: E402
+app.include_router(upload_router)

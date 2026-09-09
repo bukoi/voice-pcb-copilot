@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+backend/parsed_board.json
+backend/tmp
+backend/training_data
