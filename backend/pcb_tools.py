@@ -2,10 +2,14 @@ import json
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from livekit.agents import function_tool, RunContext
 from tavily import AsyncTavilyClient
 import asyncio
-import asyncpg
+from qdrant_client import AsyncQdrantClient
 from sentence_transformers import SentenceTransformer
 
 # ---------------------------------------------------------------------------
@@ -13,19 +17,19 @@ from sentence_transformers import SentenceTransformer
 # ---------------------------------------------------------------------------
 
 _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-_pg_pool = None
+_qdrant_client = None
 
 
-async def _get_pg_pool():
-    global _pg_pool
-    if _pg_pool is None:
-        _pg_pool = await asyncpg.create_pool(
-            dsn=os.environ.get(
-                "PCB_KB_DSN",
-                "postgresql://pcb:pcb_password@localhost:5439/pcbcopilot",
-            )
+def _get_qdrant_client() -> AsyncQdrantClient:
+    global _qdrant_client
+    if _qdrant_client is None:
+        url = os.environ.get("CLUSTER_URL_QDRANT") or os.environ.get("QDRANT_URL", "http://localhost:6333")
+        api_key = os.environ.get("CLUSTER_KEY_QDRANT") or os.environ.get("QDRANT_API_KEY", None)
+        _qdrant_client = AsyncQdrantClient(
+            url=url,
+            api_key=api_key,
         )
-    return _pg_pool
+    return _qdrant_client
 
 
 # ---------------------------------------------------------------------------
@@ -191,33 +195,36 @@ async def get_measurement(context: RunContext, point_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Tool: search_debugging_knowledge (pgvector RAG)
+# Tool: search_debugging_knowledge (Qdrant vector RAG)
 # ---------------------------------------------------------------------------
 
 @function_tool()
 async def search_debugging_knowledge(context: RunContext, query: str) -> str:
     """Search the electronics Q&A knowledge base for general debugging guidance."""
-    embedding = await asyncio.to_thread(_embed_model.encode, [query])
-    vector_literal = "[" + ",".join(str(x) for x in embedding[0].tolist()) + "]"
+    embedding = await asyncio.to_thread(_embed_model.encode, query)
+    client = _get_qdrant_client()
 
-    pool = await _get_pg_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT question, answer
-            FROM pcb_knowledge
-            ORDER BY embedding <=> $1::vector
-            LIMIT 3
-            """,
-            vector_literal,
+    try:
+        response = await client.query_points(
+            collection_name="pcb_knowledge",
+            query=embedding.tolist(),
+            limit=3,
         )
+        points = response.points
+    except Exception as exc:
+        return f"Knowledge base search error: {exc}"
 
-    if not rows:
+    if not points:
         return "No relevant knowledge base entries found."
 
-    return "\n\n".join(
-        f"Q: {r['question'][:200]}\nA: {r['answer'][:400]}" for r in rows
-    )
+    formatted = []
+    for p in points:
+        payload = p.payload or {}
+        q = payload.get("question", "")[:200]
+        a = payload.get("answer", "")[:400]
+        formatted.append(f"Q: {q}\nA: {a}")
+
+    return "\n\n".join(formatted)
 
 
 # ---------------------------------------------------------------------------
