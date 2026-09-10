@@ -3,12 +3,23 @@ import { Room, RoomEvent } from "livekit-client";
 import { BOARD, COMPONENTS, TEST_POINTS, ALL_IDS } from "./board-data";
 import "./App.css";
 
-const TOKEN_ENDPOINT = "http://127.0.0.1:8000/token";
-const UPLOAD_ENDPOINT = "http://127.0.0.1:8000/upload-board";
-const LIVEKIT_URL = "wss://pcb-design-jdags579.livekit.cloud";
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const LOGIN_ENDPOINT = `${BACKEND_URL}/login`;
+const TOKEN_ENDPOINT = `${BACKEND_URL}/token`;
+const UPLOAD_ENDPOINT = `${BACKEND_URL}/upload-board`;
+const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || "wss://pcb-design-jdags579.livekit.cloud";
 const MENTION_TIMEOUT_MS = 3500;
 
 function App() {
+  // Auth state
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem("pcb_auth_token") || "");
+  const [authUser, setAuthUser] = useState(() => localStorage.getItem("pcb_auth_user") || "");
+  const [loginId, setLoginId] = useState("");
+  const [loginPass, setLoginPass] = useState("");
+  const [loginError, setLoginError] = useState(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // App state
   const [phase, setPhase] = useState("idle"); // idle | connecting | live
   const [error, setError] = useState(null);
   const [entries, setEntries] = useState([]); // finalized transcript lines
@@ -51,6 +62,50 @@ function App() {
 
   useEffect(() => () => clearTimeout(mentionTimerRef.current), []);
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    if (!loginId.trim() || !loginPass.trim()) {
+      setLoginError("Please enter both ID and password.");
+      return;
+    }
+
+    setLoginError(null);
+    setIsLoggingIn(true);
+
+    try {
+      const res = await fetch(LOGIN_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: loginId.trim(), password: loginPass.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Invalid User ID or Password.");
+      }
+
+      const data = await res.json();
+      localStorage.setItem("pcb_auth_token", data.token);
+      localStorage.setItem("pcb_auth_user", data.username);
+      setAuthToken(data.token);
+      setAuthUser(data.username);
+      setLoginPass("");
+    } catch (err) {
+      setLoginError(err.message || "Failed to authenticate with backend.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await disconnect();
+    localStorage.removeItem("pcb_auth_token");
+    localStorage.removeItem("pcb_auth_user");
+    setAuthToken("");
+    setAuthUser("");
+    setLoginError(null);
+  };
+
   const cleanupAudio = () => {
     audioElsRef.current.forEach((el) => el.remove());
     audioElsRef.current = [];
@@ -68,7 +123,17 @@ function App() {
     setError(null);
     setPhase("connecting");
     try {
-      const response = await fetch(TOKEN_ENDPOINT);
+      const response = await fetch(TOKEN_ENDPOINT, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.status === 401) {
+        handleLogout();
+        throw new Error("Session expired. Please log in again.");
+      }
+
       if (!response.ok) {
         throw new Error(`Token server responded with ${response.status}`);
       }
@@ -129,7 +194,7 @@ function App() {
       console.error("Connection failed:", err);
       setError(
         err.message === "Failed to fetch"
-          ? "Can't reach the token server -- is the backend running on port 8000?"
+          ? "Can't reach the backend server -- check if the backend service is running."
           : err.message || "Connection failed."
       );
       setPhase("idle");
@@ -159,7 +224,19 @@ function App() {
       if (schFile) form.append("sch_file", schFile);
       if (pcbFile) form.append("pcb_file", pcbFile);
 
-      const res = await fetch(UPLOAD_ENDPOINT, { method: "POST", body: form });
+      const res = await fetch(UPLOAD_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: form,
+      });
+
+      if (res.status === 401) {
+        handleLogout();
+        throw new Error("Session expired. Please log in again.");
+      }
+
       if (!res.ok) {
         const detail = await res.json().catch(() => ({ detail: res.statusText }));
         throw new Error(detail.detail || res.statusText);
@@ -181,6 +258,70 @@ function App() {
     }
   };
 
+  // Render Login Modal if not authenticated
+  if (!authToken) {
+    return (
+      <div className="login-wrapper">
+        <div className="login-card">
+          <div className="login-chip-icon">
+            <span className="chip-pin pin-l" />
+            <span className="chip-pin pin-r" />
+            <div className="chip-core">⚡</div>
+          </div>
+          <h1 className="login-title">Voice PCB Copilot</h1>
+          <p className="login-subtitle">Secured Hardware Debugging Terminal</p>
+
+          <form className="login-form" onSubmit={handleLogin}>
+            {loginError && (
+              <div className="login-error-alert" role="alert">
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label htmlFor="user-id">User ID</label>
+              <input
+                id="user-id"
+                type="text"
+                value={loginId}
+                placeholder="Enter ID (e.g. Sudarshan)"
+                autoComplete="username"
+                autoFocus
+                onChange={(e) => setLoginId(e.target.value)}
+                disabled={isLoggingIn}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                value={loginPass}
+                placeholder="••••••"
+                autoComplete="current-password"
+                onChange={(e) => setLoginPass(e.target.value)}
+                disabled={isLoggingIn}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="login-submit-btn"
+              disabled={isLoggingIn}
+            >
+              {isLoggingIn ? "Authenticating\u2026" : "Unlock Terminal"}
+            </button>
+          </form>
+
+          <div className="login-footer">
+            <span className="auth-hint">Authorized Access Only</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const buttonLabel = { idle: "Connect", connecting: "Connecting\u2026", live: "Listening" }[phase];
   const statusLabel = {
     idle: "Not connected",
@@ -197,7 +338,21 @@ function App() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <h1>Voice PCB Copilot</h1>
+          <div className="header-title-row">
+            <h1>Voice PCB Copilot</h1>
+            <div className="user-badge">
+              <span className="user-dot" />
+              <span className="user-name">{authUser || "Sudarshan"}</span>
+              <button
+                type="button"
+                className="logout-btn"
+                onClick={handleLogout}
+                title="Log out"
+              >
+                Log out
+              </button>
+            </div>
+          </div>
           <p className="board-desc">
             {BOARD.name} — {BOARD.description}
           </p>
