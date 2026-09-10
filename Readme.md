@@ -69,17 +69,24 @@ LiveKit Agents — real-time, streaming voice-agent framework that ties STT → 
 Uvicorn — ASGI server
 Pydantic — data validation for structured tool calls (measurements, component lookups, etc.)
 
-Voice Pipeline
+Voice Pipeline & Rime Configuration
 
-Speech-to-Text: Deepgram (livekit-plugins-deepgram)
-LLM Reasoning: Groq and OpenAI (livekit-plugins-groq, livekit-plugins-openai)
-Text-to-Speech: Rime (livekit-plugins-rime)
-Turn detection / conversational flow: livekit-plugins-turn-detector for natural, interruption-aware dialogue
+- **Text-to-Speech**: **Rime Labs** (`livekit-plugins-rime`)
+  - **Model ID**: `coda` (fast conversational TTS)
+  - **Speaker**: `lyra` (natural tone)
+  - **Language**: `en`
+  - **Transport**: WebSocket streaming (`use_websocket=True`)
+  - **Segment Mode**: `immediate` (instant time-to-first-audio)
+  - **Audio Format**: 24kHz Opus/WebRTC
+- **Speech-to-Text**: Deepgram (`nova-3`, `livekit-plugins-deepgram`)
+- **LLM Reasoning**: Groq (`openai/gpt-oss-120b`, `livekit-plugins-groq`)
+- **Turn Detection / Flow**: Multilingual turn-detector for natural, interruption-aware dialogue
 
 Knowledge & Retrieval
 
-Tavily (tavily-python) — real-time web search for datasheets, component info, and troubleshooting references
-Hugging Face Transformers + ONNX Runtime — local model inference support
+- **RAG Vector Database**: Qdrant Cloud + Sentence Transformers (`all-MiniLM-L6-v2`)
+- **Web & Datasheet Search**: Tavily (`tavily-python`) — real-time web search for datasheets and pinouts
+- **Hardware Parsers**: Custom KiCad S-expression parser (`sexpdata`) for `.kicad_sch` & `.kicad_pcb` files
 
 Frontend
 

@@ -66,9 +66,28 @@ with open(_DEFAULT_DATA_PATH, "r", encoding="utf-8-sig") as _f:
 _session_boards: dict[str, dict] = {}
 
 
-def _get_board(room_name: str) -> dict:
-    """Return the board data for this room, or the default if none uploaded."""
-    return _session_boards.get(room_name, _DEFAULT_PCB_DATA)
+def _get_room_name(context: RunContext | None = None) -> str:
+    """Safely extract the room name from RunContext across different LiveKit Agents versions."""
+    if context is None:
+        return "default"
+    if hasattr(context, "room") and context.room:
+        return getattr(context.room, "name", "default")
+    if hasattr(context, "session") and context.session:
+        session = context.session
+        if hasattr(session, "room_io") and session.room_io:
+            room = getattr(session.room_io, "room", None)
+            if room and hasattr(room, "name"):
+                return room.name
+    return "default"
+
+
+def _get_board(room_name: str | None = None) -> dict:
+    """Return the board data for this room, or the latest uploaded board, or default fallback."""
+    if room_name and room_name in _session_boards:
+        return _session_boards[room_name]
+    if _session_boards:
+        return list(_session_boards.values())[-1]
+    return _DEFAULT_PCB_DATA
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +139,7 @@ async def load_board_file(
     except Exception as exc:
         return {"error": f"Failed to parse files: {exc}"}
 
-    room_name = context.room.name
+    room_name = _get_room_name(context)
     _session_boards[room_name] = merged
 
     return {
@@ -139,7 +158,8 @@ async def load_board_file(
 @function_tool()
 async def list_components(context: RunContext) -> dict:
     """List all component reference designators and test points on the current board."""
-    board = _get_board(context.room.name)
+    room = _get_room_name(context)
+    board = _get_board(room)
     components = board.get("components", {})
     test_points = board.get("test_points", {})
     nets = board.get("nets", {})
@@ -159,10 +179,11 @@ async def list_components(context: RunContext) -> dict:
 async def get_component(context: RunContext, component_id: str) -> dict:
     """Get info about a board component by reference designator (e.g. U1, R1, C2)."""
     component_id = component_id.upper()
-    board = _get_board(context.room.name)
-    component = board["components"].get(component_id)
+    room = _get_room_name(context)
+    board = _get_board(room)
+    component = board.get("components", {}).get(component_id)
     if not component:
-        available = sorted(board["components"].keys())
+        available = sorted(board.get("components", {}).keys())
         return {
             "error": f"No component named {component_id} found on this board.",
             "available_components": available,
@@ -178,7 +199,8 @@ async def get_component(context: RunContext, component_id: str) -> dict:
 async def get_test_point(context: RunContext, point_id: str) -> dict:
     """Get a test point's location and expected voltage by ID (e.g. TP1, TP3)."""
     point_id = point_id.upper()
-    board = _get_board(context.room.name)
+    room = _get_room_name(context)
+    board = _get_board(room)
     point = board.get("test_points", {}).get(point_id)
     if not point:
         return {"error": f"No test point named {point_id} found on this board."}
@@ -196,7 +218,7 @@ _measurements: dict[str, dict[str, float]] = {}  # room_name -> {point_id: volta
 async def record_measurement(context: RunContext, point_id: str, voltage: float) -> dict:
     """Record a voltage reading at a test point and compare to expected value."""
     point_id = point_id.upper()
-    room = context.room.name
+    room = _get_room_name(context)
     _measurements.setdefault(room, {})[point_id] = voltage
     board = _get_board(room)
     expected = board.get("test_points", {}).get(point_id, {}).get("expected_voltage", "unknown")
@@ -207,7 +229,7 @@ async def record_measurement(context: RunContext, point_id: str, voltage: float)
 async def get_measurement(context: RunContext, point_id: str) -> dict:
     """Recall a previously recorded voltage measurement at a test point."""
     point_id = point_id.upper()
-    room = context.room.name
+    room = _get_room_name(context)
     room_measurements = _measurements.get(room, {})
     if point_id not in room_measurements:
         return {"error": f"No measurement has been recorded yet at {point_id}."}
