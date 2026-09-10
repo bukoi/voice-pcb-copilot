@@ -2,6 +2,10 @@ import json
 import os
 import sys
 from pathlib import Path
+
+# Add backend directory to sys.path so local imports work from any working directory
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
+
 from dotenv import load_dotenv
 
 load_dotenv()
