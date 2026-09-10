@@ -23,7 +23,7 @@ from sentence_transformers import SentenceTransformer
 _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 _qdrant_client = None
 
-
+#abc
 def _get_qdrant_client() -> AsyncQdrantClient:
     global _qdrant_client
     if _qdrant_client is None:
