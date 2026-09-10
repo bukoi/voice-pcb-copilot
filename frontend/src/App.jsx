@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Room, RoomEvent } from "livekit-client";
 import { BOARD, COMPONENTS, TEST_POINTS, ALL_IDS } from "./board-data";
+import { LOGIN_ENDPOINT, TOKEN_ENDPOINT, UPLOAD_ENDPOINT, LIVEKIT_URL } from "./config";
 import "./App.css";
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
-const LOGIN_ENDPOINT = `${BACKEND_URL}/login`;
-const TOKEN_ENDPOINT = `${BACKEND_URL}/token`;
-const UPLOAD_ENDPOINT = `${BACKEND_URL}/upload-board`;
-const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || "wss://pcb-design-jdags579.livekit.cloud";
 const MENTION_TIMEOUT_MS = 3500;
 
 function App() {
