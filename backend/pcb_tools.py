@@ -20,10 +20,26 @@ from sentence_transformers import SentenceTransformer
 # Shared infrastructure — loaded once at import time
 # ---------------------------------------------------------------------------
 
-_embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+_embed_model = None
 _qdrant_client = None
+_tavily = None
 
-#abc
+
+def _get_embed_model():
+    global _embed_model
+    if _embed_model is None:
+        _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embed_model
+
+
+def _get_tavily_client() -> AsyncTavilyClient:
+    global _tavily
+    if _tavily is None:
+        api_key = os.environ.get("TAVILY_API_KEY", "")
+        _tavily = AsyncTavilyClient(api_key=api_key)
+    return _tavily
+
+
 def _get_qdrant_client() -> AsyncQdrantClient:
     global _qdrant_client
     if _qdrant_client is None:
@@ -205,7 +221,8 @@ async def get_measurement(context: RunContext, point_id: str) -> dict:
 @function_tool()
 async def search_debugging_knowledge(context: RunContext, query: str) -> str:
     """Search the electronics Q&A knowledge base for general debugging guidance."""
-    embedding = await asyncio.to_thread(_embed_model.encode, query)
+    embed_model = _get_embed_model()
+    embedding = await asyncio.to_thread(embed_model.encode, query)
     client = _get_qdrant_client()
 
     try:
@@ -235,15 +252,14 @@ async def search_debugging_knowledge(context: RunContext, query: str) -> str:
 # Tool: search_component_info (Tavily web search)
 # ---------------------------------------------------------------------------
 
-_tavily = AsyncTavilyClient(api_key=os.environ["TAVILY_API_KEY"])
-
 
 @function_tool()
 async def search_component_info(context: RunContext, query: str) -> str:
     """Search the web for datasheet specs or info about a real-world component."""
     await context.update(f"Let me look that up — checking on {query} now.")
+    tavily_client = _get_tavily_client()
 
-    response = await _tavily.search(
+    response = await tavily_client.search(
         query=query,
         search_depth="fast",
         max_results=3,

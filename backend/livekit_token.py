@@ -25,6 +25,13 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+@app.head("/")
+def root_health():
+    return {"status": "ok", "service": "Voice PCB Copilot Backend"}
+
+
+
 @app.post("/login")
 def login(req: LoginRequest):
     if not authenticate_user(req):
