@@ -63,8 +63,8 @@ async def my_agent(ctx: agents.JobContext):
         stt=deepgram.STT(
             model="nova-3",
             language="multi",
-            keyterms=["TP1", "TP2", "TP3", "TP4", "U1", "R1", "R2", "C1", "C2",
-                      "D1", "LED1", "J1"],
+            keyterm=["TP1", "TP2", "TP3", "TP4", "U1", "R1", "R2", "C1", "C2",
+                     "D1", "LED1", "J1"],
         ),
         llm=groq.LLM(
             model="openai/gpt-oss-120b",

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Room, RoomEvent } from "livekit-client";
 import { BOARD, COMPONENTS, TEST_POINTS, ALL_IDS } from "./board-data";
-import { LOGIN_ENDPOINT, TOKEN_ENDPOINT, UPLOAD_ENDPOINT, LIVEKIT_URL } from "./config";
+import { LOGIN_ENDPOINT, TOKEN_ENDPOINT, UPLOAD_ENDPOINT, LIVEKIT_URL, AUTH_VERIFY_ENDPOINT } from "./config";
 import "./App.css";
 
 const MENTION_TIMEOUT_MS = 3500;
@@ -57,6 +57,22 @@ function App() {
   }, [entries, liveText]);
 
   useEffect(() => () => clearTimeout(mentionTimerRef.current), []);
+
+  // Validate stored token on mount — if invalid or expired, kick back to login screen
+  useEffect(() => {
+    if (!authToken) return;
+    fetch(AUTH_VERIFY_ENDPOINT, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          handleLogout();
+        }
+      })
+      .catch(() => {
+        // Network offline or server waking up — keep local token until explicit 401
+      });
+  }, [authToken]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
