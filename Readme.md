@@ -132,13 +132,24 @@ npm run dev
 
 Then open the frontend in your browser, join a session, and start talking to the copilot.
 
-⚠️ Exact entrypoint commands may differ slightly — check the scripts inside /backend and /frontend for the current run commands.
+🧪 Testing with Sample KiCad Files
+
+We include real-world test hardware files in `backend/kicad_files_to_test/`:
+- `CM5_MINIMA_3.kicad_sch` (Raspberry Pi Compute Module 5 Minima carrier schematic)
+- `CM5_MINIMA_3.kicad_pcb` (Raspberry Pi Compute Module 5 Minima carrier layout)
+
+**To test dynamic board loading in the web UI:**
+1. Connect to the voice session in the browser.
+2. In the **Upload KiCad files** header panel, pick the `.kicad_sch` and/or `.kicad_pcb` files from `backend/kicad_files_to_test/`.
+3. Click **Upload board**.
+4. The copilot will parse the board dynamically, acknowledge the component count via Rime speech, and update its context so you can immediately ask about its specific components and nets.
 
 💬 Example Interactions
-"What's this 8-pin chip labeled 'LM358' near the op-amp section?"
-"I'm probing test point 2 and getting 0 volts, what should that be reading?"
-"Log 4.98 volts at the regulator output."
-"The board powers on but the LED isn't lighting, walk me through what to check."
+- "What's this 8-pin chip labeled 'LM358' near the op-amp section?"
+- "I'm probing test point 2 and getting 0 volts, what should that be reading?"
+- "Log 4.98 volts at the regulator output."
+- "What components are on this board?" (after uploading the sample files)
+- "The board powers on but the LED isn't lighting, walk me through what to check."
 🗺️ Roadmap Ideas
 Persistent session history so past debug sessions and logged measurements can be revisited
 Image/vision support for pointing a camera at a component instead of describing it verbally

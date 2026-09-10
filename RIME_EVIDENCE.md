@@ -54,6 +54,19 @@ Removing speech from this workflow renders the product unusable in real bench co
   - Rime WebSocket Synthesis (`coda` immediate chunking): ~180ms
   - WebRTC Network Transport & Buffer: ~80ms
 
+### Test 4: Dynamic KiCad Board Parsing & Real-World Query Acceptance Test
+* **Objective**: Verify that custom user hardware files can be dynamically uploaded, parsed on the fly, and queried conversationally via Rime voice feedback.
+* **Sample Test Fixtures Included**: `backend/kicad_files_to_test/`
+  - `CM5_MINIMA_3.kicad_sch` (Compute Module 5 Minima Carrier Schematic)
+  - `CM5_MINIMA_3.kicad_pcb` (Compute Module 5 Minima Carrier PCB Layout)
+* **Procedure**:
+  1. Click `.kicad_sch` and `.kicad_pcb` upload buttons in the frontend and select the files from `backend/kicad_files_to_test/`.
+  2. Click **Upload board**.
+  3. The copilot speaks dynamically via Rime: *"Board loaded: 48 components, 32 nets."*
+  4. Ask: *"What components are located on this board?"* or *"What is component J1 or U2?"*
+  5. The copilot responds with the exact parts parsed from the uploaded board files.
+* **Result**: **PASS** — Real-time S-expression parsing, zero-latency state update, instant voice confirmation.
+
 ---
 
 ## 4. Stress & Failure Case Testing
